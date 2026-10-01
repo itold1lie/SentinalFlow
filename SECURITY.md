@@ -12,7 +12,7 @@ If you discover a security vulnerability in SentinelFlow, please report it respo
 
 ### Do not open a public GitHub issue for security vulnerabilities.
 
-Instead, please send an email to: **lakshanisonework@gmail.com**
+Instead, please send an email to: **lakshanisonwork@gmail.com**
 
 Include the following details:
 - Description of the vulnerability

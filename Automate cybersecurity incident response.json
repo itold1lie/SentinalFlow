@@ -1,0 +1,820 @@
+{
+  "name": "Automate cybersecurity incident response",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "security-alert",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1feee801-f906-4f5c-8a95-ebaa52a33405",
+      "name": "Receive Security Alert",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        1104,
+        992
+      ],
+      "webhookId": "cybersecurity-incident-webhook",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Extract alert from request body\nconst raw = $input.item.json.body || $input.item.json;\n\n// Validate required fields\nconst required = ['source', 'alertType'];\nconst missing = required.filter(f => !raw[f]);\nif (missing.length > 0) {\n  throw new Error(`Missing required alert fields: ${missing.join(', ')}`);\n}\n\n// Normalize alert type to standard taxonomy\nconst alertTypeMappings = {\n  'brute_force': 'BRUTE_FORCE',\n  'bruteforce': 'BRUTE_FORCE',\n  'login_failure': 'BRUTE_FORCE',\n  'malware': 'MALWARE_DETECTED',\n  'malware_detected': 'MALWARE_DETECTED',\n  'ransomware': 'RANSOMWARE',\n  'phishing': 'PHISHING',\n  'data_exfiltration': 'DATA_EXFILTRATION',\n  'exfiltration': 'DATA_EXFILTRATION',\n  'lateral_movement': 'LATERAL_MOVEMENT',\n  'privilege_escalation': 'PRIVILEGE_ESCALATION',\n  'ddos': 'DDOS_ATTACK',\n  'dos': 'DDOS_ATTACK',\n  'sql_injection': 'WEB_ATTACK',\n  'xss': 'WEB_ATTACK',\n  'web_attack': 'WEB_ATTACK',\n  'c2': 'C2_COMMUNICATION',\n  'c2_communication': 'C2_COMMUNICATION',\n  'unauthorized_access': 'UNAUTHORIZED_ACCESS'\n};\n\nconst normalizedType = alertTypeMappings[raw.alertType?.toLowerCase()] || raw.alertType?.toUpperCase() || 'UNKNOWN';\n\n// Normalize source\nconst sourceMap = {\n  'splunk': 'SIEM',\n  'qradar': 'SIEM',\n  'sentinel': 'SIEM',\n  'crowdstrike': 'EDR',\n  'sentinelone': 'EDR',\n  'defender': 'EDR',\n  'paloalto': 'FIREWALL',\n  'fortinet': 'FIREWALL',\n  'cisco': 'FIREWALL',\n  'snort': 'IDS',\n  'suricata': 'IDS'\n};\n\nconst sourceCategory = sourceMap[raw.source?.toLowerCase()] || 'UNKNOWN';\n\n// Extract IPs safely\nconst sourceIP = raw.sourceIP || raw.src_ip || raw.attackerIP || null;\nconst destinationIP = raw.destinationIP || raw.dst_ip || raw.targetIP || null;\n\n// Build normalized incident\nconst incident = {\n  incidentId: `INC-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,\n  alertType: normalizedType,\n  source: raw.source || 'unknown',\n  sourceCategory,\n  sourceIP,\n  destinationIP,\n  affectedHost: raw.affectedHost || raw.hostname || raw.host || null,\n  affectedUser: raw.affectedUser || raw.username || raw.user || null,\n  affectedAsset: raw.affectedAsset || raw.asset || null,\n  rawLog: raw.rawLog || raw.message || raw.log || JSON.stringify(raw),\n  originalTimestamp: raw.timestamp || new Date().toISOString(),\n  receivedAt: new Date().toISOString(),\n  tags: raw.tags || [],\n  additionalContext: raw.context || {}\n};\n\nreturn { json: { incident } };"
+      },
+      "id": "c3c8a1cc-49bf-4e4e-9d85-78ae387f00ad",
+      "name": "Normalize and Validate Alert",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1328,
+        992
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "url": "=https://www.virustotal.com/api/v3/ip_addresses/{{ $json.incident.sourceIP || '8.8.8.8' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "virusTotalApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-apikey",
+              "value": "=680bb12178dd56401a3faa4f3c1218b6964562de01cb51bbfe6744be369dc82a"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "b34636e3-fa00-4eda-9566-bd0c6de8d3cb",
+      "name": "Check IP on VirusTotal",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1552,
+        800
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "virusTotalApi": {
+          "id": "OrskjXH0MVpKSdgS",
+          "name": "VirusTotal account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "https://api.abuseipdb.com/api/v2/check",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ipAddress",
+              "value": "={{ $('Normalize and Validate Alert').item.json.incident.sourceIP || '8.8.8.8' }}"
+            },
+            {
+              "name": "maxAgeInDays",
+              "value": "90"
+            },
+            {
+              "name": "verbose",
+              "value": "true"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Key",
+              "value": "=89ebd0a4ffb58fea193ed1aac478c5473894f249d8b8777b49a3d43579c6a0aa7920c74c8cf6500d"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "f9013960-c3db-44b2-9715-74216ffe98bb",
+      "name": "Check IP on AbuseIPDB",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1552,
+        992
+      ],
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "=https://api.shodan.io/shodan/host/{{ $('Normalize and Validate Alert').item.json.incident.sourceIP || '8.8.8.8' }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "FTxquN9vXeMssbO7ZlvU5ZsOJlYSX0fm"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "7e2ea0cd-cb84-44a2-bf19-da218b31fa7b",
+      "name": "Lookup Host on Shodan",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1552,
+        1184
+      ],
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "id": "c4efb81d-ba06-4ce2-a3b0-1004c4d04277",
+      "name": "Merge Threat Intelligence",
+      "type": "n8n-nodes-base.merge",
+      "position": [
+        1776,
+        976
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Pull all enrichment sources (with safe access)\nlet incident = {};\nlet vtResponse = {};\nlet abuseResponse = {};\nlet shodanResponse = {};\n\ntry { incident = $('Normalize and Validate Alert').item.json.incident || {}; } catch (e) { console.log('No incident:', e.message); }\ntry { vtResponse = $('Check IP on VirusTotal').item.json || {}; } catch (e) { console.log('No VT:', e.message); }\ntry { abuseResponse = $('Check IP on AbuseIPDB').item.json || {}; } catch (e) { console.log('No AbuseIPDB:', e.message); }\ntry { shodanResponse = $('Lookup Host on Shodan').item.json || {}; } catch (e) { console.log('No Shodan:', e.message); }\n\n// Parse VirusTotal\nlet virusTotalData = { maliciousVotes: 0, suspiciousVotes: 0, harmlessVotes: 0, totalEngines: 0, country: 'Unknown', asOwner: 'Unknown' };\ntry {\n  if (vtResponse && vtResponse.data && vtResponse.data.attributes) {\n    const attrs = vtResponse.data.attributes;\n    const stats = attrs.last_analysis_stats || {};\n    virusTotalData = {\n      maliciousVotes: stats.malicious || 0,\n      suspiciousVotes: stats.suspicious || 0,\n      harmlessVotes: stats.harmless || 0,\n      totalEngines: (stats.malicious || 0) + (stats.suspicious || 0) + (stats.harmless || 0) + (stats.undetected || 0),\n      country: attrs.country || 'Unknown',\n      asOwner: attrs.as_owner || 'Unknown',\n      reputation: attrs.reputation || 0,\n      lastAnalysisDate: attrs.last_analysis_date ? new Date(attrs.last_analysis_date * 1000).toISOString() : null\n    };\n  }\n} catch (e) { console.log('VT parse error:', e.message); }\n\n// Parse AbuseIPDB\nlet abuseIPData = { abuseConfidenceScore: 0, totalReports: 0, isWhitelisted: false, isp: 'Unknown', usageType: 'Unknown', countryCode: 'Unknown' };\ntry {\n  if (abuseResponse && abuseResponse.data) {\n    const d = abuseResponse.data;\n    abuseIPData = {\n      abuseConfidenceScore: d.abuseConfidenceScore || 0,\n      totalReports: d.totalReports || 0,\n      isWhitelisted: d.isWhitelisted || false,\n      isp: d.isp || 'Unknown',\n      usageType: d.usageType || 'Unknown',\n      countryCode: d.countryCode || 'Unknown',\n      lastReportedAt: d.lastReportedAt || null\n    };\n  }\n} catch (e) { console.log('AbuseIPDB parse error:', e.message); }\n\n// Parse Shodan\nlet shodanData = { openPorts: [], vulns: [], hostnames: [], os: 'Unknown', org: 'Unknown' };\ntry {\n  if (shodanResponse && !shodanResponse.error) {\n    shodanData = {\n      openPorts: shodanResponse.ports || [],\n      vulns: Object.keys(shodanResponse.vulns || {}),\n      hostnames: shodanResponse.hostnames || [],\n      os: shodanResponse.os || 'Unknown',\n      org: shodanResponse.org || 'Unknown',\n      isp: shodanResponse.isp || 'Unknown'\n    };\n  }\n} catch (e) { console.log('Shodan parse error:', e.message); }\n\n// Calculate composite threat score (0-100)\nconst vtScore = virusTotalData.totalEngines > 0\n  ? Math.round((virusTotalData.maliciousVotes / virusTotalData.totalEngines) * 40)\n  : 0;\nconst abuseScore = Math.round((abuseIPData.abuseConfidenceScore / 100) * 35);\nconst shodanScore = Math.min(shodanData.vulns.length * 5 + shodanData.openPorts.length * 0.5, 25);\nconst compositeThreatScore = Math.min(Math.round(vtScore + abuseScore + shodanScore), 100);\n\nreturn {\n  json: {\n    incident,\n    threatIntelligence: {\n      virusTotal: virusTotalData,\n      abuseIPDB: abuseIPData,\n      shodan: shodanData,\n      compositeThreatScore,\n      enrichedAt: new Date().toISOString()\n    }\n  }\n};"
+      },
+      "id": "bf1c457f-2fc3-4d38-a7ed-2bdd8d51f56e",
+      "name": "Combine Enrichment Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2000,
+        992
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an expert cybersecurity incident responder (CISSP, CISM certified). Analyze this security incident and provide a structured severity assessment with response playbook.\n\n**Incident Details:**\n- Incident ID: {{ $json.incident.incidentId }}\n- Alert Type: {{ $json.incident.alertType }}\n- Source: {{ $json.incident.source }} ({{ $json.incident.sourceCategory }})\n- Source IP: {{ $json.incident.sourceIP || 'N/A' }}\n- Destination IP: {{ $json.incident.destinationIP || 'N/A' }}\n- Affected Host: {{ $json.incident.affectedHost || 'N/A' }}\n- Affected User: {{ $json.incident.affectedUser || 'N/A' }}\n- Timestamp: {{ $json.incident.originalTimestamp }}\n- Raw Log: {{ $json.incident.rawLog }}\n\n**Threat Intelligence:**\n- VirusTotal Malicious Votes: {{ $json.threatIntelligence.virusTotal.maliciousVotes }} / {{ $json.threatIntelligence.virusTotal.totalEngines }} engines\n- AbuseIPDB Confidence Score: {{ $json.threatIntelligence.abuseIPDB.abuseConfidenceScore }}%\n- AbuseIPDB Total Reports: {{ $json.threatIntelligence.abuseIPDB.totalReports }}\n- Source IP Country: {{ $json.threatIntelligence.virusTotal.country }}\n- IP Owner/ISP: {{ $json.threatIntelligence.abuseIPDB.isp }}\n- Open Ports on Host: {{ JSON.stringify($json.threatIntelligence.shodan.openPorts) }}\n- Known Vulnerabilities: {{ JSON.stringify($json.threatIntelligence.shodan.vulns) }}\n- Composite Threat Score: {{ $json.threatIntelligence.compositeThreatScore }}/100\n\n**Assessment Guidelines:**\n- CRITICAL: Active breach, ransomware, data exfiltration, C2 confirmed — immediate containment\n- HIGH: Confirmed malicious activity, privilege escalation, lateral movement — rapid response\n- MEDIUM: Suspicious activity, multiple failed logins, known bad IP — investigate and monitor\n- LOW: Single anomaly, low-confidence detection, likely false positive — log and review\n\n**Response Format (JSON only, no markdown):**\n{\n  \"severity\": \"CRITICAL | HIGH | MEDIUM | LOW\",\n  \"severityScore\": 95,\n  \"confidence\": \"HIGH | MEDIUM | LOW\",\n  \"threatCategory\": \"brief category name\",\n  \"summary\": \"2-3 sentence plain-English summary of the incident\",\n  \"isFalsePositive\": false,\n  \"falsePositiveReason\": null,\n  \"immediateActions\": [\"ordered list of actions to take right now\"],\n  \"containmentSteps\": [\"specific technical containment actions\"],\n  \"investigationSteps\": [\"forensic investigation steps\"],\n  \"affectedSystems\": [\"list of potentially affected systems/services\"],\n  \"iocList\": [\"indicators of compromise to hunt for\"],\n  \"mitreTactics\": [\"MITRE ATT&CK tactic names\"],\n  \"mitreTechniques\": [\"MITRE ATT&CK technique IDs like T1110\"],\n  \"recommendedPlaybook\": \"BRUTE_FORCE | MALWARE | RANSOMWARE | PHISHING | DATA_EXFIL | INSIDER_THREAT | WEB_ATTACK | GENERIC\",\n  \"escalateToManagement\": true,\n  \"requiresForensics\": false,\n  \"estimatedImpact\": \"brief impact statement\"\n}",
+        "options": {
+          "systemMessage": "You are a cybersecurity incident response expert. Respond with JSON only — no markdown, no code blocks, no additional text. Your assessments must be accurate, actionable, and aligned with NIST IR framework and MITRE ATT&CK."
+        }
+      },
+      "id": "3f8a8e24-1335-4109-bce7-cd66905a62c0",
+      "name": "Assess Severity with Claude AI",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        2224,
+        992
+      ],
+      "typeVersion": 1.6
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const aiResponse = $input.item.json;\nlet aiText = aiResponse.response || aiResponse.output || aiResponse.text || '';\n\n// Handle content array format from Anthropic\nif (aiResponse.content && Array.isArray(aiResponse.content)) {\n  aiText = aiResponse.content[0]?.text || '';\n}\n\n// Strip markdown code blocks if present\nconst cleanText = aiText\n  .replace(/```json\\s*/g, '')\n  .replace(/```\\s*/g, '')\n  .trim();\n\nlet assessment;\ntry {\n  assessment = JSON.parse(cleanText);\n} catch (error) {\n  throw new Error(`Failed to parse Claude AI response: ${error.message}. Raw: ${cleanText.substring(0, 200)}`);\n}\n\n// Pull enriched incident from upstream\nconst enrichedData = $('Combine Enrichment Data').item.json;\n\n// Determine auto-containment flag (Critical or High non-false-positive)\nconst autoContain = ['CRITICAL', 'HIGH'].includes(assessment.severity) && !assessment.isFalsePositive;\n\n// Determine notification level\nconst notifyLevel = {\n  'CRITICAL': 'P1_IMMEDIATE',\n  'HIGH': 'P2_URGENT',\n  'MEDIUM': 'P3_STANDARD',\n  'LOW': 'P4_INFORMATIONAL'\n}[assessment.severity] || 'P3_STANDARD';\n\nreturn {\n  json: {\n    incident: enrichedData.incident,\n    threatIntelligence: enrichedData.threatIntelligence,\n    assessment,\n    responseDecision: {\n      autoContain,\n      notifyLevel,\n      createTicket: true,\n      requiresEscalation: assessment.escalateToManagement || assessment.severity === 'CRITICAL',\n      requiresForensics: assessment.requiresForensics || false\n    },\n    assessedAt: new Date().toISOString()\n  }\n};"
+      },
+      "id": "4f5999dd-580d-456e-a032-0819b2ec0dbb",
+      "name": "Parse AI Assessment",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2576,
+        992
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "leftValue": "={{ $json.responseDecision.autoContain }}",
+              "id": "cfd18474-f19a-4ce6-a954-b5d268ee4f19"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d8383b5c-ac7b-4d45-90c4-bdd5fa685b8c",
+      "name": "Check Severity for Auto-Containment",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        2800,
+        992
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://webhook.site/2610319b-4548-43b0-b072-1c45ffa81bf8",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_TOKEN_HERE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"ip\": \"{{ $json.incident.sourceIP }}\",\n  \"reason\": \"Auto-blocked by IRT: {{ $json.incident.incidentId }} - {{ $json.assessment.severity }} {{ $json.incident.alertType }}\",\n  \"duration\": \"{{ $json.assessment.severity === 'CRITICAL' ? 'permanent' : '24h' }}\",\n  \"addedBy\": \"n8n-incident-response\",\n  \"timestamp\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "4f571f5e-3068-417c-8b1f-e69e3e367b56",
+      "name": "Block Malicious IP on Firewall",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3024,
+        704
+      ],
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://webhook.site/d2d5de5d-5d22-4c9f-be81-c0380a6451b0",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_TOKEN_HERE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"hostname\": \"{{ $json.incident.affectedHost }}\",\n  \"incidentId\": \"{{ $json.incident.incidentId }}\",\n  \"severity\": \"{{ $json.assessment.severity }}\",\n  \"reason\": \"{{ $json.assessment.summary }}\",\n  \"isolationType\": \"{{ $json.assessment.severity === 'CRITICAL' ? 'full' : 'network' }}\",\n  \"isolatedBy\": \"n8n-incident-response\",\n  \"timestamp\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "d922513b-55b3-4697-8c8f-ac17d8285ed9",
+      "name": "Isolate Affected Host via EDR",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3024,
+        992
+      ],
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://webhook.site/73c2a2a3-7682-447e-ad5e-271c207cc2ea",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_TOKEN_HERE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"userEmail\": \"{{ $json.incident.affectedUser }}\",\n  \"incidentId\": \"{{ $json.incident.incidentId }}\",\n  \"revokeAll\": true,\n  \"reason\": \"Security incident: {{ $json.assessment.severity }} {{ $json.incident.alertType }}\",\n  \"revokedBy\": \"n8n-incident-response\"\n}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "2511a111-9fb0-43bb-bc86-129745d1be8e",
+      "name": "Revoke User Tokens and Sessions",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3024,
+        1280
+      ],
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/chat.postMessage",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"channel\": \"{{ $json.assessment.severity === 'CRITICAL' ? 'C0C4DCUQ3GU' : $json.assessment.severity === 'HIGH' ? 'C0C44M01A21' : 'C0C543X3QSC' }}\",\n  \"text\": \"🚨 *{{ $json.assessment.severity }} Security Incident Detected*\",\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": {\n        \"type\": \"plain_text\",\n        \"text\": \"🚨 {{ $json.assessment.severity }} Incident: {{ $json.incident.alertType }}\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        { \"type\": \"mrkdwn\", \"text\": \"*Incident ID:*\\n{{ $json.incident.incidentId }}\" },\n        { \"type\": \"mrkdwn\", \"text\": \"*Severity:*\\n{{ $json.assessment.severity }} ({{ $json.assessment.severityScore }}/100)\" },\n        { \"type\": \"mrkdwn\", \"text\": \"*Source IP:*\\n{{ $json.incident.sourceIP || 'N/A' }}\" },\n        { \"type\": \"mrkdwn\", \"text\": \"*Affected Host:*\\n{{ $json.incident.affectedHost || 'N/A' }}\" },\n        { \"type\": \"mrkdwn\", \"text\": \"*Alert Source:*\\n{{ $json.incident.source }}\" },\n        { \"type\": \"mrkdwn\", \"text\": \"*Containment:*\\n{{ $json.responseDecision.autoContain ? '✅ Auto-contained' : '⚠️ Manual action required' }}\" }\n      ]\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*Summary:*\\n{{ $json.assessment.summary }}\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*MITRE ATT&CK:* {{ $json.assessment.mitreTechniques.join(', ') }}\\n*Playbook:* {{ $json.assessment.recommendedPlaybook }}\"\n      }\n    }\n  ]\n}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "e6b22acb-20a7-43d8-b1c1-e654ddc53dfb",
+      "name": "Notify SOC Team on Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3248,
+        784
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "slackApi": {
+          "id": "3MHaewyPjZt1PHi8",
+          "name": "Slack account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://imaybetheadmin.atlassian.net/rest/api/3/issue",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "jiraSoftwareCloudApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"fields\": {\n    \"project\": { \"key\": \"SEC\" },\n    \"issuetype\": { \"name\": \"Incident\" },\n    \"summary\": \"[{{ $json.assessment.severity }}] {{ $json.incident.alertType }} - {{ $json.incident.incidentId }}\",\n    \"priority\": { \"name\": \"{{ $json.assessment.severity === 'CRITICAL' ? 'Highest' : $json.assessment.severity === 'HIGH' ? 'High' : $json.assessment.severity === 'MEDIUM' ? 'Medium' : 'Low' }}\" },\n    \"description\": {\n      \"type\": \"doc\",\n      \"version\": 1,\n      \"content\": [\n        {\n          \"type\": \"paragraph\",\n          \"content\": [{ \"type\": \"text\", \"text\": \"Incident ID: {{ $json.incident.incidentId }}\" }]\n        },\n        {\n          \"type\": \"paragraph\",\n          \"content\": [{ \"type\": \"text\", \"text\": \"Summary: {{ $json.assessment.summary }}\" }]\n        },\n        {\n          \"type\": \"paragraph\",\n          \"content\": [{ \"type\": \"text\", \"text\": \"Source IP: {{ $json.incident.sourceIP || 'N/A' }} | AbuseIPDB Score: {{ $json.threatIntelligence.abuseIPDB.abuseConfidenceScore }}%\" }]\n        },\n        {\n          \"type\": \"paragraph\",\n          \"content\": [{ \"type\": \"text\", \"text\": \"MITRE Techniques: {{ $json.assessment.mitreTechniques.join(', ') }}\" }]\n        },\n        {\n          \"type\": \"paragraph\",\n          \"content\": [{ \"type\": \"text\", \"text\": \"Playbook: {{ $json.assessment.recommendedPlaybook }}\" }]\n        }\n      ]\n    },\n    \"labels\": [\"security-incident\", \"{{ $json.incident.alertType.toLowerCase().replace(/_/g, '-') }}\", \"{{ $json.assessment.severity.toLowerCase() }}\"],\n    \"customfield_10016\": \"{{ $json.incident.incidentId }}\"\n  }\n}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "0533b985-ab61-47aa-902f-ce283b8fd1fb",
+      "name": "Create Incident Ticket in Jira",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3248,
+        1136
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "8kHGHIp5eKpONgX0",
+          "name": "Jira SW Cloud account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Safely fetch upstream data\nlet data = {};\nlet slackResponse = {};\nlet jiraResponse = {};\n\ntry { data = $('Parse AI Assessment').item.json || {}; } catch (e) { console.log('No Parse AI Assessment:', e.message); }\ntry { slackResponse = $('Notify SOC Team on Slack').item.json || {}; } catch (e) { console.log('No Slack:', e.message); }\ntry { jiraResponse = $('Create Incident Ticket in Jira').item.json || {}; } catch (e) { console.log('No Jira:', e.message); }\n\n// Extract Jira ticket key\nconst jiraTicketKey = (jiraResponse && jiraResponse.key) || (jiraResponse && jiraResponse.id) || 'TICKET_CREATION_FAILED';\nconst jiraTicketUrl = (jiraResponse && jiraResponse.key)\n  ? `https://imaybetheadmin.atlassian.net/browse/${jiraResponse.key}`\n  : null;\n\n// Containment summary\nconst containmentActions = [];\nif (data.responseDecision && data.responseDecision.autoContain) {\n  if (data.incident && data.incident.sourceIP) containmentActions.push('IP blocked on firewall');\n  if (data.incident && data.incident.affectedHost) containmentActions.push('Host isolated via EDR');\n  if (data.incident && data.incident.affectedUser) containmentActions.push('User sessions revoked');\n}\n\nconst report = {\n  success: true,\n  incidentId: data.incident ? data.incident.incidentId : null,\n  severity: data.assessment ? data.assessment.severity : null,\n  severityScore: data.assessment ? data.assessment.severityScore : null,\n  confidence: data.assessment ? data.assessment.confidence : null,\n  alertType: data.incident ? data.incident.alertType : null,\n  source: data.incident ? data.incident.source : null,\n  summary: data.assessment ? data.assessment.summary : null,\n  affectedAssets: {\n    host: data.incident ? data.incident.affectedHost : null,\n    user: data.incident ? data.incident.affectedUser : null,\n    sourceIP: data.incident ? data.incident.sourceIP : null,\n    destinationIP: data.incident ? data.incident.destinationIP : null\n  },\n  threatIntelligence: {\n    compositeThreatScore: data.threatIntelligence ? data.threatIntelligence.compositeThreatScore : null,\n    virusTotalMalicious: (data.threatIntelligence && data.threatIntelligence.virusTotal) ? data.threatIntelligence.virusTotal.maliciousVotes : 0,\n    abuseConfidenceScore: (data.threatIntelligence && data.threatIntelligence.abuseIPDB) ? data.threatIntelligence.abuseIPDB.abuseConfidenceScore : 0,\n    knownVulnerabilities: (data.threatIntelligence && data.threatIntelligence.shodan) ? data.threatIntelligence.shodan.vulns : []\n  },\n  containment: {\n    autoContainmentExecuted: data.responseDecision ? data.responseDecision.autoContain : false,\n    actionsExecuted: containmentActions\n  },\n  response: {\n    jiraTicket: jiraTicketKey,\n    jiraTicketUrl: jiraTicketUrl,\n    slackNotified: !(slackResponse && slackResponse.error),\n    notificationLevel: data.responseDecision ? data.responseDecision.notifyLevel : null\n  },\n  playbook: data.assessment ? data.assessment.recommendedPlaybook : null,\n  mitreTechniques: data.assessment ? data.assessment.mitreTechniques : [],\n  iocList: data.assessment ? data.assessment.iocList : [],\n  immediateActions: data.assessment ? data.assessment.immediateActions : [],\n  investigationSteps: data.assessment ? data.assessment.investigationSteps : [],\n  escalateToManagement: data.responseDecision ? data.responseDecision.requiresEscalation : false,\n  requiresForensics: data.responseDecision ? data.responseDecision.requiresForensics : false,\n  processedAt: new Date().toISOString()\n};\n\nreturn { json: report };"
+      },
+      "id": "a8459447-fd36-49e1-9b9b-e266226cc33e",
+      "name": "Build Final Incident Report",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3472,
+        928
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1KoGgd0Q7eXJRU4hcaFJrukKZaZ-H4Eo4a7kGr-O1TzM",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "incidentId": "={{ $json.incidentId }}",
+            "severity": "={{ $json.severity }}",
+            "alertType": "=\t{{ $json.alertType }}",
+            "sourceIP": "={{ $json.affectedAssets.sourceIP }}",
+            "summary": "={{ $json.summary }}",
+            "processedAt": "={{ $json.processedAt }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "incidentId",
+              "displayName": "incidentId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "severity",
+              "displayName": "severity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "alertType",
+              "displayName": "alertType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sourceIP",
+              "displayName": "sourceIP",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "processedAt",
+              "displayName": "processedAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "99091e68-8ca2-4f05-8fd6-a5d28170cacb",
+      "name": "Write Compliance Audit Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        3696,
+        928
+      ],
+      "typeVersion": 4.5,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SsrdFJIZOVuJKB1Y",
+          "name": "Google Sheets account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "4be1a2e8-e350-4f21-9233-cd3840335133",
+      "name": "Send Incident Response to Caller",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        3920,
+        928
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        2224,
+        1216
+      ],
+      "id": "0388a2c8-e8ed-42cb-bcca-30ef44517d50",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "FLWWfAWXl4fmUHK3",
+          "name": "Google Gemini(PaLM) Api account 4"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Parse AI Assessment": {
+      "main": [
+        [
+          {
+            "node": "Check Severity for Auto-Containment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check IP on AbuseIPDB": {
+      "main": [
+        [
+          {
+            "node": "Merge Threat Intelligence",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Lookup Host on Shodan": {
+      "main": [
+        [
+          {
+            "node": "Merge Threat Intelligence",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Check IP on VirusTotal": {
+      "main": [
+        [
+          {
+            "node": "Merge Threat Intelligence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Receive Security Alert": {
+      "main": [
+        [
+          {
+            "node": "Normalize and Validate Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Enrichment Data": {
+      "main": [
+        [
+          {
+            "node": "Assess Severity with Claude AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify SOC Team on Slack": {
+      "main": [
+        [
+          {
+            "node": "Build Final Incident Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Threat Intelligence": {
+      "main": [
+        [
+          {
+            "node": "Combine Enrichment Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Compliance Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Send Incident Response to Caller",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Final Incident Report": {
+      "main": [
+        [
+          {
+            "node": "Write Compliance Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize and Validate Alert": {
+      "main": [
+        [
+          {
+            "node": "Check IP on VirusTotal",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check IP on AbuseIPDB",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Lookup Host on Shodan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Isolate Affected Host via EDR": {
+      "main": [
+        [
+          {
+            "node": "Create Incident Ticket in Jira",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assess Severity with Claude AI": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Assessment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Block Malicious IP on Firewall": {
+      "main": [
+        [
+          {
+            "node": "Notify SOC Team on Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Incident Ticket in Jira": {
+      "main": [
+        [
+          {
+            "node": "Build Final Incident Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revoke User Tokens and Sessions": {
+      "main": [
+        [
+          {
+            "node": "Create Incident Ticket in Jira",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Severity for Auto-Containment": {
+      "main": [
+        [
+          {
+            "node": "Block Malicious IP on Firewall",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Isolate Affected Host via EDR",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Revoke User Tokens and Sessions",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify SOC Team on Slack",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Incident Ticket in Jira",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Assess Severity with Claude AI",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "6150e228-c683-4584-8841-3c60ca781524",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0eef7e2cea1d21a67026a9171ec83c5cd965c6e20903201cc281db7ede4fabd4"
+  },
+  "id": "pZtSx7DoGlQ2lXQH",
+  "tags": []
+}

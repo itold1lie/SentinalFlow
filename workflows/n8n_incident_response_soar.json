@@ -42,7 +42,7 @@
           "parameters": [
             {
               "name": "x-apikey",
-              "value": "=680bb12178dd56401a3faa4f3c1218b6964562de01cb51bbfe6744be369dc82a"
+              "value": "={{ $env.VIRUSTOTAL_API_KEY || 'YOUR_VIRUSTOTAL_API_KEY' }}"
             }
           ]
         },

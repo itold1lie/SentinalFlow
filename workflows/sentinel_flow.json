@@ -1,0 +1,232 @@
+{
+  "name": "SentinalFlow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "a90317d7-416e-46f7-8a46-b8148b0e94a3",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "724c2d28-3cd0-43d5-bd60-ec394a8d0ee5",
+      "name": "Webhook",
+      "webhookId": "a90317d7-416e-46f7-8a46-b8148b0e94a3",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhookData = $input.first().json;\n\nreturn [{\n  json: {\n    alertId: webhookData.body?.alertId || \"no-id\",\n    dstDomain: webhookData.body?.dstDomain || \"unknown\",\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "633507c8-d81b-4607-9e9c-9f5a83f1c0f5",
+      "name": "Normalize node",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    alertId: \"test-mock-001\",\n    dstDomain: \"testphp.vulnweb.com\",\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "dc0407b3-32d1-4298-bb76-fa05f869f931",
+      "name": "Mock Data Node"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.virustotal.com/api/v3/domains/{{ $json.dstDomain }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        624,
+        0
+      ],
+      "id": "2f1a9429-24ec-4146-a79a-38afcc4cd32a",
+      "name": "VirusTotal API",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "oaJTIoEnyOV0pU4A",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"Authorization\": \"Bearer your api key need to be used \",\n  \"Content-Type\": \"application/json\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.1-8b-instant\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a security analyst. Analyze alerts and return ONLY valid JSON.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze this alert. Alert ID: {{ $json.alertId }}, Domain: {{ $json.dstDomain }}. Return JSON with severity (Critical/High/Medium/Low) and reason.\"\n    }\n  ],\n  \"temperature\": 0.1,\n  \"response_format\": {\"type\": \"json_object\"}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        832,
+        0
+      ],
+      "id": "bfe648d0-fcba-4b79-abd3-fe1886f64661",
+      "name": "Groq API - Llama 3.1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Groq API response\nconst groqResponse = $input.first().json;\n\ntry {\n  // Extract content from Groq response\n  const aiContent = groqResponse.choices[0].message.content;\n  \n  // Try to parse as JSON\n  let parsed;\n  if (typeof aiContent === 'string') {\n    parsed = JSON.parse(aiContent);\n  } else {\n    parsed = aiContent;\n  }\n  \n  return [{\n    json: {\n      alertId: $json.alertId,\n      dstDomain: $json.dstDomain,\n      severity: parsed.severity || \"Unknown\",\n      reason: parsed.reason || \"No reason provided\",\n      timestamp: new Date().toISOString()\n    }\n  }];\n} catch (error) {\n  // Fallback for parsing errors\n  return [{\n    json: {\n      alertId: $json.alertId,\n      dstDomain: $json.dstDomain,\n      severity: \"Error\",\n      reason: \"Failed to parse AI response: \" + error.message,\n      timestamp: new Date().toISOString()\n    }\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "d7be1252-b87e-47fb-a318-51473e218c52",
+      "name": "Parse LLM Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format for Discord embed\nconst data = $input.first().json;\n\n// Color mapping based on severity\nconst colorMap = {\n  \"Critical\": 16711680,  // Red\n  \"High\": 16753920,      // Orange\n  \"Medium\": 16776960,    // Yellow\n  \"Low\": 65280,          // Green\n  \"Error\": 8421504,      // Gray\n  \"Unknown\": 8421504     // Gray\n};\n\nconst severity = data.severity || \"Unknown\";\nconst color = colorMap[severity] || 16711680;\n\nreturn [{\n  json: {\n    embeds: [{\n      title: \"SentinelFlow Alert\",\n      color: color,\n      fields: [\n        {\n          name: \"Alert ID\",\n          value: data.alertId || \"No ID\",\n          inline: true\n        },\n        {\n          name: \"Domain\",\n          value: data.dstDomain || \"Unknown\",\n          inline: true\n        },\n        {\n          name: \"Severity\",\n          value: severity,\n          inline: true\n        },\n        {\n          name: \"Reason\",\n          value: data.reason || \"No analysis available\",\n          inline: false\n        }\n      ],\n      timestamp: new Date().toISOString(),\n      footer: {\n        text: \"SentinelFlow Security Automation\"\n      }\n    }]\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        0
+      ],
+      "id": "f4957715-e549-4b58-acda-b4ea5eb9d077",
+      "name": "Format Discord Message"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://discord.com/api/webhooks/1435436114742738974/QvD6jV2KhPFlP0DDQWa32sJYkOpLjMRqPlIyD3V4lqDWHlm0bRrkr8axg0rqZxhS15VY",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"Content-Type\": \"application/json\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1456,
+        0
+      ],
+      "id": "519261c0-5bda-46c8-87e3-b1b228c18e36",
+      "name": "Discord Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize node": {
+      "main": [
+        [
+          {
+            "node": "Mock Data Node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mock Data Node": {
+      "main": [
+        [
+          {
+            "node": "VirusTotal API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VirusTotal API": {
+      "main": [
+        [
+          {
+            "node": "Groq API - Llama 3.1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq API - Llama 3.1": {
+      "main": [
+        [
+          {
+            "node": "Parse LLM Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse LLM Response": {
+      "main": [
+        [
+          {
+            "node": "Format Discord Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Discord Message": {
+      "main": [
+        [
+          {
+            "node": "Discord Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "a6d45145-92cd-416f-8e0e-9955f24baf4a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0eef7e2cea1d21a67026a9171ec83c5cd965c6e20903201cc281db7ede4fabd4"
+  },
+  "id": "wJpI5KSmc6H1qvrr",
+  "tags": []
+}

@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🛡️ SentinelFlow
+#  SentinelFlow
 
 ### Autonomous AI-Powered Security Operations & Incident Response (SOAR) Pipeline
 
@@ -24,18 +24,18 @@
 
 ---
 
-## ⚡ Key Highlights
+##  Key Highlights
 
-- 🎯 **Multi-Source Threat Fusion** — Real-time correlation with **VirusTotal API v3**, **AbuseIPDB**, and **Shodan** to establish a weighted **Composite Threat Score (0–100)**.
-- 🧠 **Guarded LLM Reasoning** — Utilizes **Groq Llama 3.1** / **Google Gemini** / **Claude** with strict JSON schema parsing for deterministic severity classification and playbook recommendations.
-- 🛑 **Automated Containment Actions** — Executes policy-driven incident containment: Firewall IP blocking, EDR host isolation, and active session/token revocation.
-- 📢 **Full SOC Integration** — Instant notification dispatch to **Discord** and **Slack**, automated ticket creation in **Jira Software**, and audit logging in **Google Sheets**.
-- 📐 **NIST & MITRE ATT&CK Aligned** — Normalizes alerts against standard taxonomy (Brute Force, C2, Malware, Exfiltration) following the **NIST SP 800-61r2** incident handling lifecycle.
-- ⚡ **Dual Engine Flexibility** — Deploy as a **visual low-code n8n workflow** or run as a **high-speed standalone Python CLI engine**.
+- **Multi-Source Threat Fusion** — Real-time correlation with **VirusTotal API v3**, **AbuseIPDB**, and **Shodan** to establish a weighted **Composite Threat Score (0–100)**.
+- **Guarded LLM Reasoning** — Utilizes **Groq Llama 3.1** / **Google Gemini** / **Claude** with strict JSON schema parsing for deterministic severity classification and playbook recommendations.
+- **Automated Containment Actions** — Executes policy-driven incident containment: Firewall IP blocking, EDR host isolation, and active session/token revocation.
+- **Full SOC Integration** — Instant notification dispatch to **Discord** and **Slack**, automated ticket creation in **Jira Software**, and audit logging in **Google Sheets**.
+- **NIST & MITRE ATT&CK Aligned** — Normalizes alerts against standard taxonomy (Brute Force, C2, Malware, Exfiltration) following the **NIST SP 800-61r2** incident handling lifecycle.
+- **Dual Engine Flexibility** — Deploy as a **visual low-code n8n workflow** or run as a **high-speed standalone Python CLI engine**.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```mermaid
 flowchart TD
@@ -85,7 +85,7 @@ flowchart TD
 
 ---
 
-## 🗂️ Project Structure
+## Project Structure
 
 ```
 SentinalFlow/
@@ -121,7 +121,7 @@ SentinalFlow/
 
 ---
 
-## 🚀 Two Ways to Run
+## Two Ways to Run
 
 ### Option 1: Full Enterprise SOAR Workflow (n8n)
 
@@ -181,7 +181,7 @@ python -m src.sentinel_flow
 
 ---
 
-## 🧪 Sample Output
+## Sample Output
 
 ```
 ============================================================
@@ -209,7 +209,7 @@ python -m src.sentinel_flow
 
 ---
 
-## 📊 Threat Taxonomy & MITRE ATT&CK Mapping
+## Threat Taxonomy & MITRE ATT&CK Mapping
 
 SentinelFlow standardizes raw incoming events into recognized security categories:
 
@@ -223,15 +223,15 @@ SentinelFlow standardizes raw incoming events into recognized security categorie
 
 ---
 
-## 🔒 Security Policy & Credential Hygiene
+## Security Policy & Credential Hygiene
 
-- 🛡️ **Zero Committed Secrets**: This repository strictly rejects hardcoded API keys, bearer tokens, or webhook secrets. All configurations utilize `.env` variables or n8n secret stores.
-- 🔍 **Safe Simulation**: Out-of-the-box containment actions default to mock endpoints to protect production networks during initial testing.
-- 📋 Please review our [SECURITY.md](SECURITY.md) for vulnerability disclosure procedures.
+- **Zero Committed Secrets**: This repository strictly rejects hardcoded API keys, bearer tokens, or webhook secrets. All configurations utilize `.env` variables or n8n secret stores.
+- **Safe Simulation**: Out-of-the-box containment actions default to mock endpoints to protect production networks during initial testing.
+- Please review our [SECURITY.md](SECURITY.md) for vulnerability disclosure procedures.
 
 ---
 
-## 📚 Research & Academic Citation
+## Research & Academic Citation
 
 This project is built upon the academic research:
 
@@ -254,13 +254,12 @@ If you use SentinelFlow in your research or SOC deployment, please cite this rep
 
 ---
 
-## 👥 Contributors
+##  Contributors
 
 - **Lakshan Kumaresh V D** ([@itold1lie](https://github.com/itold1lie)) — *Architecture, Automation & Core Pipeline*
-- **Team ZERO TWO**
 
 ---
 
-## 📜 License
+## License
 
 This project is licensed under the [MIT License](LICENSE).

@@ -235,10 +235,8 @@ SentinelFlow standardizes raw incoming events into recognized security categorie
 
 This project is built upon the academic research:
 
-> **"SentinelFlow: AI + N8N Workflows for Security Operations"**  
-> *School of Innovation, KGiSL Institute of Technology, Coimbatore, India*  
+> **"SentinelFlow: AI + N8N Workflows for Security Operations"**    
 > **Authors:** Lakshan Kumaresh V D, Rithish S, Loga Mummoorthi S  
-> **Project Mentor:** Kanishk Upreti  
 > **Team:** ZERO TWO  
 
 If you use SentinelFlow in your research or SOC deployment, please cite this repository:
@@ -246,10 +244,7 @@ If you use SentinelFlow in your research or SOC deployment, please cite this rep
 ```bibtex
 @article{sentinelflow2026,
   title={SentinelFlow: AI + N8N Workflows for Security Operations},
-  author={Lakshan Kumaresh V D and Rithish S and Loga Mummoorthi S and Kanishk Upreti},
-  journal={School of Innovation, KGiSL Institute of Technology},
-  year={2026}
-}
+  author={Lakshan Kumaresh V D and Rithish S and Loga Mummoorthi S }
 ```
 
 ---

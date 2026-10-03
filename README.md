@@ -244,7 +244,7 @@ If you use SentinelFlow in your research or SOC deployment, please cite this rep
 ```bibtex
 @article{sentinelflow2026,
   title={SentinelFlow: AI + N8N Workflows for Security Operations},
-  author={Lakshan Kumaresh V D and Rithish S and Loga Mummoorthi S }
+  author={Lakshan Kumaresh V D or @itold1lie}
 ```
 
 ---
